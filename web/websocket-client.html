@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket 客户端</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --card: #fff;
+      --border: #dbe3ef;
+      --text: #172033;
+      --muted: #6b778c;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #15803d;
+      --danger: #b91c1c;
+      --code-bg: #101827;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .container { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 40px; }
+    h1, h2 { margin: 0; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 17px; margin-bottom: 16px; }
+    .subtitle { color: var(--muted); margin: 6px 0 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 5px 18px rgba(25, 45, 80, .05);
+      margin-bottom: 18px;
+    }
+    .connection-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 440px; }
+    .field.small { flex: 0 1 160px; }
+    label { font-weight: 600; }
+    input, textarea, select, button { font: inherit; }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+      color: var(--text); background: #fff; outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    textarea { resize: vertical; min-height: 104px; }
+    button { border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; font-weight: 600; }
+    button.primary { color: #fff; background: var(--primary); }
+    button.primary:hover { background: var(--primary-dark); }
+    button.secondary { color: #334155; background: #e8eef7; }
+    button.danger { color: #fff; background: var(--danger); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .status { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); margin-top: 14px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }
+    .dot.connected { background: var(--success); }
+    .dot.error { background: var(--danger); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .button-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    input[type="file"] { max-width: 100%; }
+    .log-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .log {
+      background: var(--code-bg); color: #dce8ff; border-radius: 8px; padding: 12px;
+      height: 330px; overflow: auto; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .entry { padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.09); }
+    .entry:last-child { border-bottom: 0; }
+    .entry .meta { color: #8da5ca; }
+    .entry.send { color: #b8e6c2; }
+    .entry.receive { color: #c9dcff; }
+    .entry.error { color: #ffb8b8; }
+    .hidden { display: none !important; }
+    @media (max-width: 760px) { .container { width: min(100% - 20px, 1180px); padding-top: 18px; } .grid { grid-template-columns: 1fr; } .card { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>WebSocket 客户端</h1>
+    <p class="subtitle">分别发送文本和二进制数据，并在日志中区分接收到的消息类型。</p>
+
+    <section class="card">
+      <h2>连接</h2>
+      <div class="connection-row">
+        <div class="field">
+          <label for="url">WebSocket 地址</label>
+          <input id="url" type="text" value="ws://localhost:8080" placeholder="ws://localhost:8080 或 wss://example.com/ws">
+        </div>
+        <button id="connectBtn" class="primary" type="button">连接</button>
+        <button id="disconnectBtn" class="danger" type="button" disabled>断开</button>
+      </div>
+      <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">未连接</span></div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>发送文本</h2>
+        <label for="textInput">文本内容</label>
+        <textarea id="textInput" placeholder="输入要发送的文本，例如：hello websocket"></textarea>
+        <div class="button-row"><button id="sendTextBtn" class="primary" type="button" disabled>发送文本</button></div>
+      </section>
+
+      <section class="card">
+        <h2>发送二进制</h2>
+        <div class="field">
+          <label for="binaryFile">选择文件</label>
+          <input id="binaryFile" type="file">
+        </div>
+        <div class="hint">选择文件后将按原始字节发送。</div>
+        <div class="button-row"><button id="sendFileBtn" class="primary" type="button" disabled>发送文件</button></div>
+        <div class="field" style="margin-top: 14px;">
+          <label for="hexInput">十六进制字节</label>
+          <input id="hexInput" type="text" placeholder="例如：48 65 6c 6c 6f">
+        </div>
+        <div class="hint">支持空格、逗号或冒号分隔。</div>
+        <div class="button-row"><button id="sendHexBtn" class="primary" type="button" disabled>发送十六进制</button></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="log-toolbar">
+        <h2 style="margin: 0;">收发日志</h2>
+        <button id="clearLogBtn" class="secondary" type="button">清空日志</button>
+      </div>
+      <div id="log" class="log" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const urlInput = $('url');
+      const connectBtn = $('connectBtn');
+      const disconnectBtn = $('disconnectBtn');
+      const sendTextBtn = $('sendTextBtn');
+      const sendFileBtn = $('sendFileBtn');
+      const sendHexBtn = $('sendHexBtn');
+      const textInput = $('textInput');
+      const binaryFile = $('binaryFile');
+      const hexInput = $('hexInput');
+      const statusDot = $('statusDot');
+      const statusText = $('statusText');
+      const log = $('log');
+      let socket = null;
+
+      function now() {
+        return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      }
+
+      function addLog(type, message) {
+        const entry = document.createElement('div');
+        entry.className = `entry ${type}`;
+        const meta = type === 'send' ? '发送' : type === 'receive' ? '接收' : type === 'error' ? '错误' : '系统';
+        entry.innerHTML = `<span class="meta">[${now()}] ${meta}</span> ${escapeHtml(message)}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+      }
+
+      function setStatus(text, state = '') {
+        statusText.textContent = text;
+        statusDot.className = `dot ${state}`;
+      }
+
+      function isOpen() { return socket && socket.readyState === WebSocket.OPEN; }
+
+      function updateButtons() {
+        const open = isOpen();
+        connectBtn.disabled = open || (socket && socket.readyState === WebSocket.CONNECTING);
+        disconnectBtn.disabled = !socket || (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING);
+        sendTextBtn.disabled = !open;
+        sendFileBtn.disabled = !open;
+        sendHexBtn.disabled = !open;
+      }
+
+      function connect() {
+        const url = urlInput.value.trim();
+        if (!url) { addLog('error', '请输入 WebSocket 地址'); return; }
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+        try {
+          socket = new WebSocket(url);
+          socket.binaryType = 'arraybuffer';
+          setStatus('连接中…');
+          updateButtons();
+          addLog('system', `正在连接 ${url}`);
+          socket.onopen = () => { setStatus('已连接', 'connected'); updateButtons(); addLog('system', `连接成功：${url}`); };
+          socket.onclose = (event) => {
+            setStatus(`连接已关闭（code: ${event.code}）`);
+            updateButtons();
+            addLog('system', `连接关闭，code=${event.code}${event.reason ? `，reason=${event.reason}` : ''}`);
+          };
+          socket.onerror = () => { setStatus('连接错误', 'error'); updateButtons(); addLog('error', 'WebSocket 发生错误，请检查地址和服务端状态'); };
+          socket.onmessage = handleMessage;
+        } catch (error) {
+          setStatus('连接失败', 'error');
+          addLog('error', `无法创建连接：${error.message}`);
+          updateButtons();
+        }
+      }
+
+      function disconnect() {
+        if (socket) socket.close(1000, 'client disconnect');
+      }
+
+      async function handleMessage(event) {
+        if (typeof event.data === 'string') {
+          addLog('receive', `文本：${event.data}`);
+          return;
+        }
+        try {
+          const buffer = event.data instanceof ArrayBuffer ? event.data : await event.data.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          addLog('receive', `二进制：${bytes.byteLength} 字节，${formatBinary(bytes)}`);
+        } catch (error) {
+          addLog('error', `读取二进制消息失败：${error.message}`);
+        }
+      }
+
+      function toHex(bytes) {
+        return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ');
+      }
+
+      function formatBinary(bytes) {
+        return toHex(bytes) || '(空数据)';
+      }
+
+      function parseHex(value) {
+        const normalized = value.trim().replace(/[,:]/g, ' ').replace(/\s+/g, ' ');
+        if (!normalized) return new Uint8Array();
+        const parts = normalized.split(' ');
+        if (parts.some((part) => !/^[0-9a-fA-F]{2}$/.test(part))) throw new Error('十六进制格式应为两位字节，例如：48 65 6c');
+        return new Uint8Array(parts.map((part) => parseInt(part, 16)));
+      }
+
+      function sendText() {
+        if (!isOpen()) return;
+        const value = textInput.value;
+        socket.send(value);
+        addLog('send', `文本：${value}`);
+      }
+
+      async function sendFile() {
+        if (!isOpen()) return;
+        try {
+          const file = binaryFile.files[0];
+          if (!file) { addLog('error', '请先选择要发送的文件'); return; }
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          socket.send(buffer);
+          addLog('send', `二进制文件：${file.name}（${file.size} 字节），${formatBinary(bytes)}`);
+        } catch (error) {
+          addLog('error', `发送文件失败：${error.message}`);
+        }
+      }
+
+      function sendHex() {
+        if (!isOpen()) return;
+        try {
+          const bytes = parseHex(hexInput.value);
+          if (!bytes.length) { addLog('error', '请输入要发送的十六进制字节'); return; }
+          socket.send(bytes);
+          addLog('send', `二进制：${bytes.byteLength} 字节，${formatBinary(bytes)}`);
+        } catch (error) {
+          addLog('error', `发送十六进制失败：${error.message}`);
+        }
+      }
+
+      connectBtn.addEventListener('click', connect);
+      disconnectBtn.addEventListener('click', disconnect);
+      sendTextBtn.addEventListener('click', sendText);
+      sendFileBtn.addEventListener('click', sendFile);
+      sendHexBtn.addEventListener('click', sendHex);
+      $('clearLogBtn').addEventListener('click', () => { log.innerHTML = ''; });
+      textInput.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') sendText(); });
+      urlInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') connect(); });
+      updateButtons();
+      addLog('system', '客户端已就绪');
+    })();
+  </script>
+</body>
+</html>

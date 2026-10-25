@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="endpoint_input" type="id" />
+    <item name="connect_button" type="id" />
+    <item name="connection_status" type="id" />
+    <item name="text_input" type="id" />
+    <item name="binary_input" type="id" />
+    <item name="send_text" type="id" />
+    <item name="send_binary" type="id" />
+    <item name="clear_log" type="id" />
+    <item name="log_scroll" type="id" />
+    <item name="log_text" type="id" />
+</resources>
