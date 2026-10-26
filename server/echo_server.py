@@ -10,7 +10,7 @@ from websockets.asyncio.server import ServerConnection, serve
 
 
 logger = logging.getLogger(__name__)
-MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+MAX_MESSAGE_SIZE = 1024 * 1024 * 1024
 
 
 def format_message(message: str | bytes) -> str:
